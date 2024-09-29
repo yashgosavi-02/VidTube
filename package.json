@@ -1,0 +1,15 @@
+{
+  "name": "youtube-backend",
+  "version": "1.0.0",
+  "description": "backend code for youtube by chai aur code",
+  "main": "index.js",
+  "type" : "module",
+  "scripts": {
+    "start" : "node index.js"
+  },
+  "keywords": [
+    "backend"
+  ],
+  "author": "yash gosavi",
+  "license": "ISC"
+}
