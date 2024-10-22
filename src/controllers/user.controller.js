@@ -4,6 +4,7 @@ import { User } from '../models/user.model.js';
 import {uploadOnCloudinary} from "../utils/cloudinary.js";
 import {ApiResponse} from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
+
 const generateAccessAndRefreshToken = async (userId) => {
     try {
         const user = await User.findById(userId);
@@ -251,11 +252,13 @@ const updateUserAvatar = asyncHandler(async(req,res) => {
         if(!avatarLocalPath){
             throw new ApiError(400, "Avatar is required");
         }
+
+        // TODO : Delete Old Avatar - Assignment
+
         const avatar = await uploadOnCloudinary(avatarLocalPath);
         if(!avatar.url){
             throw new ApiError(400, "Failed to upload avatar");
         }
-
         const user = await User.findByIdAndUpdate(req.user?._id, {
             $set : {avatar : avatar.url}
         }, {new : true}).select("-password");
@@ -275,6 +278,9 @@ const updateUserCoverImage = asyncHandler(async(req,res) => {
         if(!coverImageLocalPath){
             throw new ApiError(400, "Cover image is required");
         }
+
+        // TODO : Delete Old CoverImage - Assignment
+        
         const coverImage = await uploadOnCloudinary(coverImageLocalPath);
         if(!coverImage.url){
             throw new ApiError(400, "Failed to upload cover image");
@@ -292,5 +298,76 @@ const updateUserCoverImage = asyncHandler(async(req,res) => {
         throw new ApiError(500, error?.message || "Failed to update cover image");
     }
 })
+
+const getUserProfile = asyncHandler(async(req,res)=>{
+    try {
+        const {userName} = req.params;
+        if(!userName?.trim()){
+            throw new ApiError(400, "Username is missing");
+        }
+
+        // fetch user profile
+        const channel = await User.aggregate([
+            {
+                $match : userName?.toLowerCase()
+            },
+            // subscribers
+            {
+                $lookup : {
+                    from : "subscriptions",
+                    localField : "_id",
+                    foreignField : "channel",
+                    as : "subscribers"
+                }
+            },
+            // subscriptions
+            { 
+                $lookup:{
+                    from : "subscriptions",
+                    localField : "_id",
+                    foreignField : "subscriber",
+                    as : "subscribedTo"
+                }
+            },
+            // count of subscribers and subscriptions with isSubscribed
+            {
+                $addFields : {
+                    SubscriberCount : {$size : "$subscribers"},
+                    SubscribedToCount : {$size : "$subscribedTo"},
+                    isSubscribed : {
+                        $cond : {
+                            $if : {$in : [req.user?._id, "$subscribers.subscriber"]},
+                            $then : true,
+                            $else : false
+                        }
+                    }
+                }
+            },
+            // project fields
+            {
+                $project : {
+                    fullName : 1,
+                    userName : 1,
+                    avatar : 1,
+                    coverImage : 1,
+                    SubscriberCount : 1,
+                    SubscribedToCount : 1,
+                    isSubscribed : 1
+                }
+            }
+        ])
+
+        if(!channel?.length){
+            throw new ApiError(404, "Channel not found");
+        }
+
+        return res
+        .status(200)
+        .json(new ApiResponse(200, channel[0], "Channel fetched successfully"));
+
+    } catch (error) {
+        throw new ApiError(500, error?.message || "Failed to fetch user profile");
+    }
+});
     
-export {registerUser, loginUser, logoutUser, refreshAccessToken, changePassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage};
+export {registerUser, loginUser, logoutUser, refreshAccessToken, changePassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage, getUserProfile};
