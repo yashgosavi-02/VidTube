@@ -150,7 +150,7 @@ const loginUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
-    { $set: { refreshToken: undefined } },
+    { $unset: { refreshToken: 1 } },
     { new: true }
   );
 
@@ -342,7 +342,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
     // fetch user profile
     const channel = await User.aggregate([
       {
-        $match: userName?.toLowerCase(),
+        $match: { userName: userName?.toLowerCase() }
       },
       // subscribers
       {
@@ -369,9 +369,9 @@ const getUserProfile = asyncHandler(async (req, res) => {
           SubscribedToCount: { $size: "$subscribedTo" },
           isSubscribed: {
             $cond: {
-              $if: { $in: [req.user?._id, "$subscribers.subscriber"] },
-              $then: true,
-              $else: false,
+              if: { $in: [new mongoose.Types.ObjectId(req.user?._id), "$subscribers.subscriber"] },
+              then: true,
+              else: false,
             },
           },
         },
@@ -389,6 +389,8 @@ const getUserProfile = asyncHandler(async (req, res) => {
         },
       },
     ]);
+    console.log(channel);
+    
 
     if (!channel?.length) {
       throw new ApiError(404, "Channel not found");
